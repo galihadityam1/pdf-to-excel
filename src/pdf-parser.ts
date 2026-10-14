@@ -25,13 +25,17 @@ function valueFor(source: Row[], label: string) {
 }
 
 export async function parsePdf(file: File, invoiceNo: number): Promise<FormData> {
-  const pdfjs = (window as Window & { pdfjsLib?: { GlobalWorkerOptions: { workerSrc: string }; getDocument: (source: { data: Uint8Array }) => { promise: Promise<{ getPage: (page: number) => Promise<{ getTextContent: () => Promise<{ items: unknown[] }> }> }> } } }).pdfjsLib;
+  const pdfjs = (window as Window & { pdfjsLib?: { GlobalWorkerOptions: { workerSrc: string }; getDocument: (source: { data: Uint8Array }) => { promise: Promise<{ getPage: (page: number) => Promise<{ getTextContent: () => Promise<{ items: unknown[] }> }>; destroy: () => Promise<void> }> } } }).pdfjsLib;
   if (!pdfjs) throw new Error('Komponen pembaca PDF belum siap. Coba pilih berkas sekali lagi.');
   pdfjs.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.js';
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  const page = await pdf.getPage(1);
-  const content = await page.getTextContent();
-  return parsePdfItems(content.items as PdfItem[], invoiceNo);
+  try {
+    const page = await pdf.getPage(1);
+    const content = await page.getTextContent();
+    return parsePdfItems(content.items as PdfItem[], invoiceNo);
+  } finally {
+    await pdf.destroy();
+  }
 }
 
 export function parsePdfItems(items: PdfItem[], invoiceNo: number): FormData {
@@ -41,6 +45,8 @@ export function parsePdfItems(items: PdfItem[], invoiceNo: number): FormData {
   form.company = valueFor(source, 'Nama Perusahaan'); form.pic = valueFor(source, 'Nama PIC');
   form.npwp = valueFor(source, 'NPWP Perusahaan'); form.npwpAddress = valueFor(source, 'Alamat NPWP');
   form.deliveryAddress = valueFor(source, 'Alamat Pengiriman Invoice'); form.phone = valueFor(source, 'No. Telp / HP'); form.email = valueFor(source, 'Email');
+  const totalRow = source.find((candidate) => /TOTAL BIAYA/i.test(candidate.text));
+  form.sourceTotal = totalRow?.items.filter((item) => item.x > 450).map((item) => number(item.text)).find(Boolean) ?? null;
   const feeRows = [
     ['individu', 'Individu'], ['tim', 'Tim >'], ['peninjau', 'Peserta Peninjau'], ['qsi', 'Quality Strategic'], ['gala', 'Gala Dinner'],
   ] as const;

@@ -5,12 +5,12 @@ export type Fee = { key: 'individu' | 'tim' | 'peninjau' | 'qsi' | 'gala'; label
 export type FormData = {
   company: string; pic: string; npwp: string; npwpAddress: string; deliveryAddress: string;
   phone: string; email: string; greeting: string; division: string; invoiceNo: number; date: string;
-  fees: Fee[]; participants: Participant[];
+  sourceTotal: number | null; fees: Fee[]; participants: Participant[];
 };
 
 export const emptyForm = (invoiceNo = 225): FormData => ({
   company: '', pic: '', npwp: '', npwpAddress: '', deliveryAddress: '', phone: '', email: '', greeting: '', division: '',
-  invoiceNo, date: new Date().toISOString().slice(0, 10),
+  invoiceNo, date: new Date().toISOString().slice(0, 10), sourceTotal: null,
   fees: [
     { key: 'individu', label: 'Penyaji Individu', quantity: 0, total: 0 },
     { key: 'tim', label: 'Penyaji Tim', quantity: 0, total: 0 },
