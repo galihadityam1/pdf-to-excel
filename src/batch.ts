@@ -37,3 +37,6 @@ export const apqoWorkbookName = (fileName: string) => {
   const stem = fileName.replace(/\.pdf$/i, '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
   return `${stem || 'formulir-apqo'}.xlsx`;
 };
+
+export const apqoInvoiceWorkbookName = (number: string, company: string) =>
+  `${number} invoice APQO ${safeCompany(company)}.xlsx`;

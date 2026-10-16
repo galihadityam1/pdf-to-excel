@@ -1,11 +1,12 @@
 import JSZip from 'jszip';
 import { apqoWorkbookName, workbookName } from './batch';
 import type { ParsedDocument } from './document-types';
-import { apqoRegistrationTemplate, invoiceTemplate, receiptTemplate } from './templates.generated';
+import { apqoInvoiceTemplate, apqoRegistrationTemplate, invoiceTemplate, receiptTemplate } from './templates.generated';
 import { FormData } from './types';
 import { createInvoice } from './xlsx/invoice';
 import { createReceipt } from './xlsx/receipt';
 import { createApqoRegistration } from './xlsx/apqo-registration';
+import { createApqoInvoice } from './xlsx/apqo-invoice';
 
 export type WorkbookKind = 'invoice' | 'receipt';
 
@@ -32,6 +33,10 @@ export async function createBatchZip(
 
 export async function createApqoWorkbook(form: Extract<ParsedDocument, { format: 'apqo' }>['form']) {
   return createApqoRegistration(apqoRegistrationTemplate, form);
+}
+
+export function createApqoInvoiceWorkbook(form: Extract<ParsedDocument, { format: 'apqo' }>['form']) {
+  return createApqoInvoice(apqoInvoiceTemplate, form);
 }
 
 export async function createApqoBatchZip(

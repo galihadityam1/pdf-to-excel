@@ -1,5 +1,6 @@
 'use client';
 
+import type { RefObject } from 'react';
 import type { ApqoForm, ApqoRole } from '../src/document-types';
 
 const identityFields = [
@@ -17,24 +18,34 @@ const identityFields = [
 export function ApqoReview({
   form,
   busy,
+  loadingAction,
   onChange,
   onRemove,
   onDownload,
+  onDownloadInvoice,
+  invoiceError,
+  invoiceNumberRef,
 }: {
   form: ApqoForm;
   busy: boolean;
+  loadingAction: string;
   onChange: (change: (previous: ApqoForm) => ApqoForm) => void;
   onRemove: () => void;
   onDownload: () => void;
+  onDownloadInvoice: () => void;
+  invoiceError: string;
+  invoiceNumberRef: RefObject<HTMLInputElement | null>;
 }) {
   const total = form.fees.reduce((sum, fee) => sum + fee.price * fee.quantity, 0);
+  const invoiceTotal = total * form.invoice.stagePercent / 100 * (1 + form.invoice.taxPercent / 100);
 
   return <section className="review apqo-review" aria-labelledby="apqo-review-heading">
     <div className="toolbar">
       <div><p className="kicker">Tinjau data APQO</p><h2 id="apqo-review-heading">{form.company || 'Organisasi belum diisi'}</h2></div>
       <div className="toolbar-actions">
         <button type="button" className="text-button" disabled={busy} onClick={onRemove}>Hapus PDF ini</button>
-        <button type="button" disabled={busy} onClick={onDownload}>Unduh formulir APQO</button>
+        <button type="button" disabled={busy} aria-busy={loadingAction === 'apqo-form'} onClick={onDownload}>{loadingAction === 'apqo-form' ? 'Membuat formulir…' : 'Unduh formulir APQO'}</button>
+        <button type="button" className="secondary-button" disabled={busy} aria-busy={loadingAction === 'apqo-invoice'} onClick={onDownloadInvoice}>{loadingAction === 'apqo-invoice' ? 'Membuat invoice…' : 'Unduh invoice APQO'}</button>
       </div>
     </div>
 
@@ -53,6 +64,18 @@ export function ApqoReview({
       <label>Biaya per peserta<input type="number" min="0" value={fee.price} onChange={(event) => onChange((old) => ({ ...old, fees: old.fees.map((item, itemIndex) => itemIndex === index ? { ...item, price: Number(event.target.value), total: Number(event.target.value) * item.quantity } : item) }))}/></label>
       <label>Jumlah peserta<input type="number" min="0" value={fee.quantity} onChange={(event) => onChange((old) => ({ ...old, fees: old.fees.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: Number(event.target.value), total: item.price * Number(event.target.value) } : item) }))}/></label>
     </div>)}</div></fieldset>
+
+    <fieldset disabled={busy}><legend>Invoice APQO</legend>
+      <p className="field-hint">Isi nomor dan tinjau tanggal invoice sebelum mengunduh. Tahap tagihan dan PPN mengikuti contoh invoice dan bisa diubah.</p>
+      {invoiceError && <p className="error" role="alert">{invoiceError}</p>}
+      <div className="grid invoice-fields">
+        <label>Nomor invoice APQO<input ref={invoiceNumberRef} type="text" inputMode="numeric" aria-invalid={invoiceError.toLowerCase().includes('nomor invoice') || undefined} value={form.invoice.number} onChange={(event) => onChange((old) => ({ ...old, invoice: { ...old.invoice, number: event.target.value } }))}/></label>
+        <label>Tanggal invoice APQO<input type="date" value={form.invoice.date} onChange={(event) => onChange((old) => ({ ...old, invoice: { ...old.invoice, date: event.target.value } }))}/></label>
+        <label>Tahap tagihan (%)<input type="number" min="1" max="100" value={form.invoice.stagePercent} onChange={(event) => onChange((old) => ({ ...old, invoice: { ...old.invoice, stagePercent: Number(event.target.value) } }))}/></label>
+        <label>PPN (%)<input type="number" min="0" max="100" value={form.invoice.taxPercent} onChange={(event) => onChange((old) => ({ ...old, invoice: { ...old.invoice, taxPercent: Number(event.target.value) } }))}/></label>
+      </div>
+      <dl><div><dt>Total invoice termasuk PPN</dt><dd>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(invoiceTotal)}</dd></div></dl>
+    </fieldset>
 
     <fieldset disabled={busy}><legend>Participation list</legend>
       <div className="table-scroll"><table><thead><tr><th>Type</th><th>Salutation</th><th>Full name</th><th>Team</th><th><span className="visually-hidden">Tindakan</span></th></tr></thead><tbody>{form.participants.map((participant, index) => <tr key={index}>

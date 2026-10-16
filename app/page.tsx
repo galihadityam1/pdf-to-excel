@@ -3,14 +3,16 @@
 import { type ChangeEvent, type DragEvent, useRef, useState } from 'react';
 import { ApqoReview } from './apqo-review';
 import { IndonesiaReview } from './indonesia-review';
-import { createApqoBatchZip, createApqoWorkbook, createBatchZip, createWorkbook, type WorkbookKind } from '../src/batch-download';
-import { apqoWorkbookName, fileKey, isIndonesia, MAX_BATCH_FILES, nextBatchNumber, repeatedInvoiceNumbers, workbookName } from '../src/batch';
+import { createApqoBatchZip, createApqoInvoiceWorkbook, createApqoWorkbook, createBatchZip, createWorkbook, type WorkbookKind } from '../src/batch-download';
+import { apqoInvoiceWorkbookName, apqoWorkbookName, fileKey, isIndonesia, MAX_BATCH_FILES, nextBatchNumber, repeatedInvoiceNumbers, workbookName } from '../src/batch';
 import type { ApqoForm, ParsedDocument } from '../src/document-types';
 import { createPdfParserSession } from '../src/pdf-parser';
 import type { FormData } from '../src/types';
+import { apqoInvoiceProblem } from '../src/xlsx/apqo-invoice';
 
 type Entry = { id: string; fileName: string; document: ParsedDocument };
 type ApqoEntry = Entry & { document: Extract<ParsedDocument, { format: 'apqo' }> };
+type LoadingAction = '' | 'read' | 'tkmpn-invoice' | 'tkmpn-receipt' | 'apqo-form' | 'apqo-invoice' | 'tkmpn-invoice-zip' | 'tkmpn-receipt-zip' | 'apqo-form-zip';
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -48,10 +50,13 @@ export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<LoadingAction>('');
   const [progress, setProgress] = useState('');
   const [message, setMessage] = useState('');
+  const [invoiceError, setInvoiceError] = useState('');
   const [issues, setIssues] = useState<string[]>([]);
   const moreFileInput = useRef<HTMLInputElement>(null);
+  const invoiceNumberRef = useRef<HTMLInputElement>(null);
   const active = entries.find((entry) => entry.id === activeId) ?? entries[0];
   const indonesiaEntries = entries.filter(isIndonesia);
   const apqoEntries = entries.filter(isApqo);
@@ -59,8 +64,10 @@ export default function Home() {
   async function addFiles(files: File[]) {
     if (busy || !files.length) return;
     setBusy(true);
+    setLoadingAction('read');
     setIssues([]);
     setMessage('');
+    setInvoiceError('');
     const added: Entry[] = [];
     const errors: string[] = [];
     const known = new Set(entries.map((entry) => entry.id));
@@ -96,6 +103,7 @@ export default function Home() {
       await parser.terminate();
       setProgress('');
       setBusy(false);
+      setLoadingAction('');
     }
 
     if (added.length) {
@@ -128,6 +136,7 @@ export default function Home() {
 
   function editApqo(change: (previous: ApqoForm) => ApqoForm) {
     if (!active || active.document.format !== 'apqo') return;
+    setInvoiceError('');
     setEntries((current) => current.map((entry) => (
       entry.id === active.id && entry.document.format === 'apqo'
         ? { ...entry, document: { ...entry.document, form: change(entry.document.form) } }
@@ -140,6 +149,7 @@ export default function Home() {
     const remaining = entries.filter((entry) => entry.id !== active.id);
     setEntries(remaining);
     setActiveId(remaining[0]?.id ?? null);
+    setInvoiceError('');
     setIssues([]);
     setMessage(`${active.fileName} dihapus dari daftar.`);
   }
@@ -148,6 +158,7 @@ export default function Home() {
     if (busy || !window.confirm('Kosongkan daftar PDF dan semua perubahan yang belum diunduh?')) return;
     setEntries([]);
     setActiveId(null);
+    setInvoiceError('');
     setIssues([]);
     setMessage('Daftar PDF dikosongkan.');
   }
@@ -157,6 +168,7 @@ export default function Home() {
     const problem = exportProblem(entries, [active]);
     if (problem) { setMessage(problem); return; }
     setBusy(true);
+    setLoadingAction(kind === 'invoice' ? 'tkmpn-invoice' : 'tkmpn-receipt');
     setMessage('');
     const form = active.document.form;
     setProgress(`Membuat ${kind === 'invoice' ? 'invoice' : 'kwitansi'} ${form.invoiceNo}...`);
@@ -168,12 +180,14 @@ export default function Home() {
     } finally {
       setProgress('');
       setBusy(false);
+      setLoadingAction('');
     }
   }
 
   async function downloadApqo() {
     if (!active || active.document.format !== 'apqo' || busy) return;
     setBusy(true);
+    setLoadingAction('apqo-form');
     setMessage('');
     setProgress('Membuat formulir APQO...');
     try {
@@ -184,6 +198,42 @@ export default function Home() {
     } finally {
       setProgress('');
       setBusy(false);
+      setLoadingAction('');
+    }
+  }
+
+  async function downloadApqoInvoice() {
+    if (!active || active.document.format !== 'apqo' || busy) return;
+    const form = active.document.form;
+    const problem = apqoInvoiceProblem(form);
+    if (problem) {
+      setInvoiceError(problem);
+      setMessage(problem);
+      if (problem.includes('nomor invoice')) invoiceNumberRef.current?.focus();
+      return;
+    }
+    if (entries.some((entry) => entry.id !== active.id && entry.document.format === 'apqo' &&
+      entry.document.form.invoice.number.trim() === form.invoice.number.trim())) {
+      const duplicate = `Nomor invoice APQO ${form.invoice.number} dipakai lebih dari sekali dalam batch.`;
+      setInvoiceError(duplicate);
+      setMessage(duplicate);
+      invoiceNumberRef.current?.focus();
+      return;
+    }
+    setInvoiceError('');
+    setBusy(true);
+    setLoadingAction('apqo-invoice');
+    setMessage('');
+    setProgress('Membuat invoice APQO...');
+    try {
+      download(await createApqoInvoiceWorkbook(form), apqoInvoiceWorkbookName(form.invoice.number, form.company));
+      setMessage(`Invoice APQO ${form.invoice.number} berhasil dibuat.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Invoice APQO gagal dibuat.');
+    } finally {
+      setProgress('');
+      setBusy(false);
+      setLoadingAction('');
     }
   }
 
@@ -192,6 +242,7 @@ export default function Home() {
     const problem = exportProblem(entries, indonesiaEntries);
     if (problem) { setMessage(problem); return; }
     setBusy(true);
+    setLoadingAction(kind === 'invoice' ? 'tkmpn-invoice-zip' : 'tkmpn-receipt-zip');
     setMessage('');
     try {
       const numbers = indonesiaEntries.map((entry) => entry.document.form.invoiceNo);
@@ -205,12 +256,14 @@ export default function Home() {
     } finally {
       setProgress('');
       setBusy(false);
+      setLoadingAction('');
     }
   }
 
   async function downloadApqoBatch() {
     if (apqoEntries.length < 2 || busy) return;
     setBusy(true);
+    setLoadingAction('apqo-form-zip');
     setMessage('');
     try {
       const archive = await createApqoBatchZip(apqoEntries, (completed, count) => {
@@ -223,6 +276,7 @@ export default function Home() {
     } finally {
       setProgress('');
       setBusy(false);
+      setLoadingAction('');
     }
   }
 
@@ -235,7 +289,7 @@ export default function Home() {
 
     {!entries.length && <label className="dropzone" onDrop={drop} onDragOver={(event) => event.preventDefault()}>
       <input type="file" accept="application/pdf,.pdf" multiple onChange={fileChange} disabled={busy}/>
-      <strong>{busy ? 'Membaca formulir...' : 'Pilih atau jatuhkan PDF formulir'}</strong>
+      <strong>{busy ? 'Memproses formulir…' : 'Pilih atau jatuhkan PDF formulir'}</strong>
       <span>Formulir TKMPN dan APQO didukung. Scan dibaca dengan OCR lokal.</span>
     </label>}
 
@@ -244,14 +298,14 @@ export default function Home() {
         <div><p className="kicker">Daftar PDF</p><h2 id="batch-heading">{entries.length} dari {MAX_BATCH_FILES} formulir</h2></div>
         <div className="toolbar-actions">
           <input ref={moreFileInput} className="review-file-input" type="file" accept="application/pdf,.pdf" multiple aria-label="Pilih PDF formulir lain" onChange={fileChange} disabled={busy}/>
-          <button type="button" className="secondary-button" disabled={busy || entries.length >= MAX_BATCH_FILES} onClick={() => moreFileInput.current?.click()}>Unggah file lain</button>
+          <button type="button" className="secondary-button" disabled={busy || entries.length >= MAX_BATCH_FILES} aria-busy={loadingAction === 'read'} onClick={() => moreFileInput.current?.click()}>{loadingAction === 'read' ? 'Memproses PDF…' : 'Unggah file lain'}</button>
           <button type="button" className="text-button" disabled={busy} onClick={clearBatch}>Kosongkan daftar</button>
         </div>
       </div>
       <ol className="document-list">{entries.map((entry) => {
         const label = entry.document.format === 'indonesia' ? entry.document.form.company || 'Perusahaan belum diisi' : entry.document.form.company || 'Organisasi belum diisi';
         return <li key={entry.id}>
-          <button type="button" className={entry.id === active?.id ? 'document-choice selected' : 'document-choice'} aria-pressed={entry.id === active?.id} disabled={busy} onClick={() => { setActiveId(entry.id); setMessage(''); }}>
+          <button type="button" className={entry.id === active?.id ? 'document-choice selected' : 'document-choice'} aria-pressed={entry.id === active?.id} disabled={busy} onClick={() => { setActiveId(entry.id); setMessage(''); setInvoiceError(''); }}>
             <span className="document-number">{entry.document.format === 'indonesia' ? entry.document.form.invoiceNo : 'APQO'}</span>
             <span><strong>{label}</strong><small>{entry.fileName}</small><span className="document-meta"><span>{entry.document.format === 'indonesia' ? 'TKMPN' : 'APQO'}</span><span>{entry.document.source === 'ocr' ? 'Hasil OCR' : 'Teks digital'}</span></span></span>
           </button>
@@ -259,19 +313,21 @@ export default function Home() {
       })}</ol>
       {(indonesiaEntries.length >= 2 || apqoEntries.length >= 2) && <div className="batch-downloads">
         {indonesiaEntries.length >= 2 && <>
-          <button type="button" disabled={busy} onClick={() => void downloadIndonesiaBatch('invoice')}>Unduh semua invoice (ZIP)</button>
-          <button type="button" className="secondary-button" disabled={busy} onClick={() => void downloadIndonesiaBatch('receipt')}>Unduh semua kwitansi (ZIP)</button>
+          <button type="button" disabled={busy} aria-busy={loadingAction === 'tkmpn-invoice-zip'} onClick={() => void downloadIndonesiaBatch('invoice')}>{loadingAction === 'tkmpn-invoice-zip' ? 'Membuat ZIP invoice…' : 'Unduh semua invoice (ZIP)'}</button>
+          <button type="button" className="secondary-button" disabled={busy} aria-busy={loadingAction === 'tkmpn-receipt-zip'} onClick={() => void downloadIndonesiaBatch('receipt')}>{loadingAction === 'tkmpn-receipt-zip' ? 'Membuat ZIP kwitansi…' : 'Unduh semua kwitansi (ZIP)'}</button>
         </>}
-        {apqoEntries.length >= 2 && <button type="button" className="secondary-button" disabled={busy} onClick={() => void downloadApqoBatch()}>Unduh semua formulir APQO (ZIP)</button>}
+        {apqoEntries.length >= 2 && <button type="button" className="secondary-button" disabled={busy} aria-busy={loadingAction === 'apqo-form-zip'} onClick={() => void downloadApqoBatch()}>{loadingAction === 'apqo-form-zip' ? 'Membuat ZIP APQO…' : 'Unduh semua formulir APQO (ZIP)'}</button>}
       </div>}
     </section>}
 
     {progress && <p className="progress" role="status">{progress}</p>}
     {issues.length > 0 && <div className="error" role="alert"><strong>Beberapa berkas tidak diproses:</strong><ul>{issues.map((issue, index) => <li key={`${index}-${issue}`}>{issue}</li>)}</ul></div>}
+    {message && <p className="notice" role="status">{message}</p>}
 
     {active?.document.format === 'indonesia' && <IndonesiaReview
       form={active.document.form}
       busy={busy}
+      loadingAction={loadingAction}
       onChange={editIndonesia}
       onRemove={removeActive}
       onDownloadInvoice={() => void downloadIndonesia('invoice')}
@@ -280,10 +336,13 @@ export default function Home() {
     {active?.document.format === 'apqo' && <ApqoReview
       form={active.document.form}
       busy={busy}
+      loadingAction={loadingAction}
       onChange={editApqo}
       onRemove={removeActive}
       onDownload={() => void downloadApqo()}
+      onDownloadInvoice={() => void downloadApqoInvoice()}
+      invoiceError={invoiceError}
+      invoiceNumberRef={invoiceNumberRef}
     />}
-    {message && <p className="notice" role="status">{message}</p>}
   </main>;
 }

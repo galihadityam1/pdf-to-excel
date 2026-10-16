@@ -12,6 +12,7 @@ const identityFields = [
 export function IndonesiaReview({
   form,
   busy,
+  loadingAction,
   onChange,
   onRemove,
   onDownloadInvoice,
@@ -19,6 +20,7 @@ export function IndonesiaReview({
 }: {
   form: FormData;
   busy: boolean;
+  loadingAction: string;
   onChange: (change: (previous: FormData) => FormData) => void;
   onRemove: () => void;
   onDownloadInvoice: () => void;
@@ -33,8 +35,8 @@ export function IndonesiaReview({
       <div><p className="kicker">Tinjau data TKMPN</p><h2 id="indonesia-review-heading">{form.company || 'Perusahaan belum diisi'}</h2></div>
       <div className="toolbar-actions">
         <button type="button" className="text-button" disabled={busy} onClick={onRemove}>Hapus PDF ini</button>
-        <button type="button" disabled={busy} onClick={onDownloadInvoice}>Unduh invoice</button>
-        <button type="button" className="secondary-button" disabled={busy} onClick={onDownloadReceipt}>Unduh kwitansi</button>
+        <button type="button" disabled={busy} aria-busy={loadingAction === 'tkmpn-invoice'} onClick={onDownloadInvoice}>{loadingAction === 'tkmpn-invoice' ? 'Membuat invoice…' : 'Unduh invoice'}</button>
+        <button type="button" className="secondary-button" disabled={busy} aria-busy={loadingAction === 'tkmpn-receipt'} onClick={onDownloadReceipt}>{loadingAction === 'tkmpn-receipt' ? 'Membuat kwitansi…' : 'Unduh kwitansi'}</button>
       </div>
     </div>
     <div className="grid">

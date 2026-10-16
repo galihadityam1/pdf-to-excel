@@ -31,6 +31,12 @@ export type ApqoForm = {
   signer: string;
   fees: ApqoFee[];
   participants: ApqoParticipant[];
+  invoice: {
+    number: string;
+    date: string;
+    stagePercent: number;
+    taxPercent: number;
+  };
 };
 
 export type ParsedDocument =
@@ -53,4 +59,10 @@ export const emptyApqoForm = (): ApqoForm => ({
     { role: 'Observer', price: 0, quantity: 0, total: 0 },
   ],
   participants: [],
+  invoice: {
+    number: '',
+    date: new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10),
+    stagePercent: 50,
+    taxPercent: 11,
+  },
 });
