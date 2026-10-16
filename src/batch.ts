@@ -1,17 +1,26 @@
-import { FormData } from './types';
+import type { ParsedDocument } from './document-types';
+import type { FormData } from './types';
 
 export const MAX_BATCH_FILES = 10;
 
 export const fileKey = (file: Pick<File, 'name' | 'size' | 'lastModified'>) =>
   JSON.stringify([file.name, file.size, file.lastModified]);
 
-export const nextBatchNumber = (entries: ReadonlyArray<{ form: FormData }>, stored: number) =>
-  Math.max(225, stored || 225, ...entries.map((entry) => entry.form.invoiceNo + 1));
+type DocumentEntry = { document: ParsedDocument };
 
-export const repeatedInvoiceNumbers = (entries: ReadonlyArray<{ form: FormData }>) => {
+export function isIndonesia<T extends DocumentEntry>(entry: T): entry is T & {
+  document: Extract<ParsedDocument, { format: 'indonesia' }>;
+} {
+  return entry.document.format === 'indonesia';
+}
+
+export const nextBatchNumber = (entries: ReadonlyArray<DocumentEntry>, stored: number) =>
+  Math.max(225, stored || 225, ...entries.filter(isIndonesia).map((entry) => entry.document.form.invoiceNo + 1));
+
+export const repeatedInvoiceNumbers = (entries: ReadonlyArray<DocumentEntry>) => {
   const seen = new Set<number>();
   const repeated = new Set<number>();
-  for (const { form } of entries) {
+  for (const { document: { form } } of entries.filter(isIndonesia)) {
     if (seen.has(form.invoiceNo)) repeated.add(form.invoiceNo);
     seen.add(form.invoiceNo);
   }
@@ -23,3 +32,8 @@ const safeCompany = (company: string) =>
 
 export const workbookName = (form: FormData, kind: 'invoice' | 'receipt') =>
   `${form.invoiceNo}${kind === 'receipt' ? ' kwitansi' : ''} ${safeCompany(form.company)}.xlsx`;
+
+export const apqoWorkbookName = (fileName: string) => {
+  const stem = fileName.replace(/\.pdf$/i, '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+  return `${stem || 'formulir-apqo'}.xlsx`;
+};

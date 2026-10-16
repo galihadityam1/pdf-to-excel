@@ -5,17 +5,21 @@
   "scripts": {
     "dev": "next dev",
     "generate:templates": "node scripts/embed-templates.mjs",
+    "vendor:ocr": "node scripts/vendor-ocr-assets.mjs",
     "generate:example": "tsx scripts/generate-example.ts",
-    "prebuild": "npm run generate:templates",
+    "prebuild": "npm run generate:templates && npm run vendor:ocr",
     "build": "next build",
     "test": "vitest run"
   },
   "dependencies": {
+    "@tesseract.js-data/eng": "^1.0.0",
+    "@tesseract.js-data/ind": "^1.0.0",
     "jszip": "3.10.1",
     "next": "16.4.0",
     "pdfjs-dist": "3.11.174",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

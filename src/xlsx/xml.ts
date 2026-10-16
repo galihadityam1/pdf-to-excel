@@ -10,6 +10,11 @@ export function replaceCell(sheet: string, reference: string, style: number, val
   const pattern = new RegExp(`<c r="${reference}"[^>]*?\\/>|<c r="${reference}"[^>]*?>(?:[\\s\\S]*?)<\\/c>`);
   return pattern.test(sheet) ? sheet.replace(pattern, cell(reference, style, value)) : sheet.replace(/<\/row>/, `${cell(reference, style, value)}</row>`);
 }
+export function replaceFormulaCell(sheet: string, reference: string, style: number, formula: string, value: number) {
+  const pattern = new RegExp(`<c r="${reference}"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/c>)`);
+  if (!pattern.test(sheet)) throw new Error(`Sel template ${reference} tidak ditemukan.`);
+  return sheet.replace(pattern, `<c r="${reference}" s="${style}"><f>${xmlEscape(formula)}</f><v>${value}</v></c>`);
+}
 export function inlineStrings(sheet: string, strings: string[]) {
   return sheet.replace(/<c r="([A-Z]+\d+)"([^>]*) t="s"><v>(\d+)<\/v><\/c>/g, (_, ref, attrs, index) => `<c r="${ref}"${attrs} t="inlineStr"><is><t>${xmlEscape(strings[Number(index)] ?? '')}</t></is></c>`);
 }

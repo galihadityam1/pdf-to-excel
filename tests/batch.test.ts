@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
-import { createBatchZip } from '../src/batch-download';
-import { fileKey, MAX_BATCH_FILES, nextBatchNumber, repeatedInvoiceNumbers, workbookName } from '../src/batch';
+import { createApqoBatchZip, createBatchZip } from '../src/batch-download';
+import { apqoWorkbookName, fileKey, MAX_BATCH_FILES, nextBatchNumber, repeatedInvoiceNumbers, workbookName } from '../src/batch';
+import { emptyApqoForm } from '../src/document-types';
 import { parsePdfItems } from '../src/pdf-parser';
 import { emptyForm } from '../src/types';
 
-const entry = (invoiceNo: number) => ({ form: emptyForm(invoiceNo) });
+const entry = (invoiceNo: number) => ({
+  document: { format: 'indonesia' as const, source: 'digital' as const, form: emptyForm(invoiceNo) },
+});
 
 describe('batch rules', () => {
   it('limits a batch to ten documents and identifies the same selected file', () => {
@@ -28,9 +31,11 @@ describe('batch rules', () => {
 
   it('reads the source total from the Total Biaya row', () => {
     const item = (str: string, x: number, y: number) => ({ str, transform: [1, 0, 0, 1, x, y] });
-    const items = Array.from({ length: 12 }, (_, index) => item(`Baris ${index}`, 50, 600 - index * 10));
+    const items = [item('Nama Perusahaan', 50, 600), item('PT Contoh', 250, 600), item('Nama PIC', 50, 580)];
     items.push(item('TOTAL BIAYA (Rp.)', 355, 421), item('Rp', 423, 421), item('40,182,000', 486, 421));
-    expect(parsePdfItems(items, 225).sourceTotal).toBe(40182000);
+    const parsed = parsePdfItems(items, 225);
+    expect(parsed.format).toBe('indonesia');
+    if (parsed.format === 'indonesia') expect(parsed.form.sourceTotal).toBe(40182000);
   });
 
   it('creates separate ZIP archives with one complete XLSX per form', async () => {
@@ -44,5 +49,20 @@ describe('batch rules', () => {
       expect(workbook.file('xl/workbook.xml')).toBeTruthy();
       expect(workbook.file('xl/worksheets/sheet1.xml')).toBeTruthy();
     }
+  });
+
+  it('creates APQO ZIP files only for APQO documents', async () => {
+    const document = { format: 'apqo' as const, source: 'digital' as const, form: emptyApqoForm() };
+    const archive = await createApqoBatchZip([{ fileName: 'apqo.pdf', document }]);
+    const zip = await JSZip.loadAsync(await archive.arrayBuffer());
+    expect(Object.keys(zip.files)).toEqual(['apqo.xlsx']);
+    expect(apqoWorkbookName('apqo.pdf')).toBe('apqo.xlsx');
+  });
+
+  it('does not include APQO documents in invoice-number validation', () => {
+    expect(repeatedInvoiceNumbers([
+      entry(225),
+      { document: { format: 'apqo', source: 'digital', form: emptyApqoForm() } },
+    ])).toEqual([]);
   });
 });

@@ -11,7 +11,9 @@ async function main() {
   const source = new Uint8Array(await readFile(pdfPath));
   const pdf = await pdfjs.getDocument({ data: source }).promise;
   const items = (await (await pdf.getPage(1)).getTextContent()).items;
-  const form = parsePdfItems(items as { str: string; transform: number[] }[], 225);
+  const parsed = parsePdfItems(items as { str: string; transform: number[] }[], 225);
+  if (parsed.format !== 'indonesia') throw new Error('PDF contoh bukan formulir Indonesia.');
+  const form = parsed.form;
   form.date = '2026-10-14';
   if (form.fees.find((fee) => fee.key === 'tim')?.total !== 30000000 || form.fees.find((fee) => fee.key === 'peninjau')?.total !== 6200000) {
     throw new Error('Angka formulir contoh tidak cocok dengan ekspektasi.');
