@@ -23,6 +23,7 @@ export function ApqoReview({
   onRemove,
   onDownload,
   onDownloadInvoice,
+  onDownloadReceipt,
   invoiceError,
   invoiceNumberRef,
 }: {
@@ -33,6 +34,7 @@ export function ApqoReview({
   onRemove: () => void;
   onDownload: () => void;
   onDownloadInvoice: () => void;
+  onDownloadReceipt: () => void;
   invoiceError: string;
   invoiceNumberRef: RefObject<HTMLInputElement | null>;
 }) {
@@ -46,6 +48,7 @@ export function ApqoReview({
         <button type="button" className="text-button" disabled={busy} onClick={onRemove}>Hapus PDF ini</button>
         <button type="button" disabled={busy} aria-busy={loadingAction === 'apqo-form'} onClick={onDownload}>{loadingAction === 'apqo-form' ? 'Membuat formulir…' : 'Unduh formulir APQO'}</button>
         <button type="button" className="secondary-button" disabled={busy} aria-busy={loadingAction === 'apqo-invoice'} onClick={onDownloadInvoice}>{loadingAction === 'apqo-invoice' ? 'Membuat invoice…' : 'Unduh invoice APQO'}</button>
+        <button type="button" className="secondary-button" disabled={busy} aria-busy={loadingAction === 'apqo-receipt'} onClick={onDownloadReceipt}>{loadingAction === 'apqo-receipt' ? 'Membuat kwitansi…' : 'Unduh kwitansi APQO'}</button>
       </div>
     </div>
 
@@ -65,8 +68,9 @@ export function ApqoReview({
       <label>Jumlah peserta<input type="number" min="0" value={fee.quantity} onChange={(event) => onChange((old) => ({ ...old, fees: old.fees.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: Number(event.target.value), total: item.price * Number(event.target.value) } : item) }))}/></label>
     </div>)}</div></fieldset>
 
-    <fieldset disabled={busy}><legend>Invoice APQO</legend>
+    <fieldset disabled={busy}><legend>Invoice dan kwitansi APQO</legend>
       <p className="field-hint">Isi nomor dan tinjau tanggal invoice sebelum mengunduh. Tahap tagihan dan PPN mengikuti contoh invoice dan bisa diubah.</p>
+      <p className="field-hint">Kwitansi memakai nomor, tanggal, dan total invoice yang sama, dibulatkan ke rupiah penuh. Terbilang mengikuti nominal kwitansi.</p>
       {invoiceError && <p className="error" role="alert">{invoiceError}</p>}
       <div className="grid invoice-fields">
         <label>Nomor invoice APQO<input ref={invoiceNumberRef} type="text" inputMode="numeric" aria-invalid={invoiceError.toLowerCase().includes('nomor invoice') || undefined} value={form.invoice.number} onChange={(event) => onChange((old) => ({ ...old, invoice: { ...old.invoice, number: event.target.value } }))}/></label>

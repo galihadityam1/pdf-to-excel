@@ -40,3 +40,6 @@ export const apqoWorkbookName = (fileName: string) => {
 
 export const apqoInvoiceWorkbookName = (number: string, company: string) =>
   `${number} invoice APQO ${safeCompany(company)}.xlsx`;
+
+export const apqoReceiptWorkbookName = (number: string, company: string) =>
+  `${number.trim()} kwitansi APQO ${safeCompany(company)}.xlsx`;

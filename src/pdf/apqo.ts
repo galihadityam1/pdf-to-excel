@@ -23,7 +23,12 @@ function fieldValue(rows: PdfRow[], labels: string[]) {
 }
 
 function parseFees(rows: PdfRow[], form: ApqoForm) {
-  const feeArea = rows.filter((row) => row.items.some((item) => item.x < 180 && roleValue(item.text)));
+  const listHeader = rows.find((row) => normalized(row.text).includes('participationlist'));
+  const registrationRows = rows.filter((row) => !listHeader || row.y > listHeader.y);
+  const headers = registrationRows.flatMap((row) => row.items);
+  const quantityStart = (headers.find((item) => normalized(item.text).startsWith('numberof'))?.x ?? 430) - 10;
+  const totalStart = (headers.find((item) => normalized(item.text).includes('runningtotal'))?.x ?? 490) - 10;
+  const feeArea = registrationRows.filter((row) => row.items.some((item) => item.x < 180 && roleValue(item.text)));
   for (const row of feeArea) {
     const role = row.items.map((item) => roleValue(item.text)).find(Boolean);
     if (!role) continue;
@@ -32,9 +37,9 @@ function parseFees(rows: PdfRow[], form: ApqoForm) {
       .map((item) => ({ x: item.x, value: numberValue(item.text) }));
     if (!values.some((item) => item.x > 250)) continue;
     const fee = form.fees.find((candidate) => candidate.role === role)!;
-    fee.price = values.find((item) => item.x > 250 && item.x < 420)?.value ?? 0;
-    fee.quantity = values.find((item) => item.x >= 420 && item.x < 480)?.value ?? 0;
-    fee.total = values.find((item) => item.x >= 480)?.value ?? fee.price * fee.quantity;
+    fee.price = values.find((item) => item.x > 250 && item.x < quantityStart)?.value ?? 0;
+    fee.quantity = values.find((item) => item.x >= quantityStart && item.x < totalStart)?.value ?? 0;
+    fee.total = values.find((item) => item.x >= totalStart)?.value ?? fee.price * fee.quantity;
   }
 }
 

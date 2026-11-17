@@ -3,8 +3,8 @@
 import { type ChangeEvent, type DragEvent, useRef, useState } from 'react';
 import { ApqoReview } from './apqo-review';
 import { IndonesiaReview } from './indonesia-review';
-import { createApqoBatchZip, createApqoInvoiceWorkbook, createApqoWorkbook, createBatchZip, createWorkbook, type WorkbookKind } from '../src/batch-download';
-import { apqoInvoiceWorkbookName, apqoWorkbookName, fileKey, isIndonesia, MAX_BATCH_FILES, nextBatchNumber, repeatedInvoiceNumbers, workbookName } from '../src/batch';
+import { createApqoBatchZip, createApqoInvoiceWorkbook, createApqoReceiptWorkbook, createApqoWorkbook, createBatchZip, createWorkbook, type WorkbookKind } from '../src/batch-download';
+import { apqoInvoiceWorkbookName, apqoReceiptWorkbookName, apqoWorkbookName, fileKey, isIndonesia, MAX_BATCH_FILES, nextBatchNumber, repeatedInvoiceNumbers, workbookName } from '../src/batch';
 import type { ApqoForm, ParsedDocument } from '../src/document-types';
 import { createPdfParserSession } from '../src/pdf-parser';
 import type { FormData } from '../src/types';
@@ -12,7 +12,7 @@ import { apqoInvoiceProblem } from '../src/xlsx/apqo-invoice';
 
 type Entry = { id: string; fileName: string; document: ParsedDocument };
 type ApqoEntry = Entry & { document: Extract<ParsedDocument, { format: 'apqo' }> };
-type LoadingAction = '' | 'read' | 'tkmpn-invoice' | 'tkmpn-receipt' | 'apqo-form' | 'apqo-invoice' | 'tkmpn-invoice-zip' | 'tkmpn-receipt-zip' | 'apqo-form-zip';
+type LoadingAction = '' | 'read' | 'tkmpn-invoice' | 'tkmpn-receipt' | 'apqo-form' | 'apqo-invoice' | 'apqo-receipt' | 'tkmpn-invoice-zip' | 'tkmpn-receipt-zip' | 'apqo-form-zip';
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -202,7 +202,7 @@ export default function Home() {
     }
   }
 
-  async function downloadApqoInvoice() {
+  async function downloadApqoBilling(kind: WorkbookKind) {
     if (!active || active.document.format !== 'apqo' || busy) return;
     const form = active.document.form;
     const problem = apqoInvoiceProblem(form);
@@ -222,14 +222,17 @@ export default function Home() {
     }
     setInvoiceError('');
     setBusy(true);
-    setLoadingAction('apqo-invoice');
+    const label = kind === 'invoice' ? 'Invoice' : 'Kwitansi';
+    setLoadingAction(kind === 'invoice' ? 'apqo-invoice' : 'apqo-receipt');
     setMessage('');
-    setProgress('Membuat invoice APQO...');
+    setProgress(`Membuat ${label.toLowerCase()} APQO...`);
     try {
-      download(await createApqoInvoiceWorkbook(form), apqoInvoiceWorkbookName(form.invoice.number, form.company));
-      setMessage(`Invoice APQO ${form.invoice.number} berhasil dibuat.`);
+      const workbook = kind === 'invoice' ? await createApqoInvoiceWorkbook(form) : await createApqoReceiptWorkbook(form);
+      const filename = kind === 'invoice' ? apqoInvoiceWorkbookName(form.invoice.number, form.company) : apqoReceiptWorkbookName(form.invoice.number, form.company);
+      download(workbook, filename);
+      setMessage(`${label} APQO ${form.invoice.number} berhasil dibuat.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Invoice APQO gagal dibuat.');
+      setMessage(error instanceof Error ? error.message : `${label} APQO gagal dibuat.`);
     } finally {
       setProgress('');
       setBusy(false);
@@ -340,7 +343,8 @@ export default function Home() {
       onChange={editApqo}
       onRemove={removeActive}
       onDownload={() => void downloadApqo()}
-      onDownloadInvoice={() => void downloadApqoInvoice()}
+      onDownloadInvoice={() => void downloadApqoBilling('invoice')}
+      onDownloadReceipt={() => void downloadApqoBilling('receipt')}
       invoiceError={invoiceError}
       invoiceNumberRef={invoiceNumberRef}
     />}

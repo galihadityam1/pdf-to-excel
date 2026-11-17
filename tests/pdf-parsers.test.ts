@@ -29,6 +29,19 @@ describe('detectFormat', () => {
 });
 
 describe('parseApqo', () => {
+  it('reads shifted fee columns in the Budiyana registration layout', () => {
+    const form = parseApqo(toRows([
+      token('NUMBER OF', 386.59, 631.06), token('RUNNING TOTAL', 455.02, 626.98),
+      token('Presenter', 57.24, 612.1), token('6,000,000', 345.43, 610.66),
+      token('Observer', 55.8, 600.58), token('1', 402.19, 600.58), token('6,500,000', 345.43, 599.86),
+      token('PARTICIPATION LIST', 40, 560),
+      token('Observer', 75.74, 502.99), token('Mr', 160, 502.99), token('Budiyana Ruskendar', 260, 502.99), token('Team 2026', 430, 502.99),
+    ]));
+    expect(form.fees).toEqual([
+      { role: 'Presenter', price: 6_000_000, quantity: 0, total: 0 },
+      { role: 'Observer', price: 6_500_000, quantity: 1, total: 6_500_000 },
+    ]);
+  });
   it('reads identity, fees, and participant rows', () => {
     const rows = toRows([
       token('Name of Person in Charge', 60, 620), token(':', 290, 620), token('Septian Eko Hari Wicaksono', 310, 620),

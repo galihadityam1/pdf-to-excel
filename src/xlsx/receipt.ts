@@ -3,7 +3,7 @@ import { FormData } from '../types';
 import { excelDate, grandTotal, romanMonth } from '../calculations';
 import { base64ToBytes, replaceCell, xmlEscape } from './xml';
 
-const terbilang = (amount: number) => {
+export const terbilang = (amount: number) => {
   const words = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
   const say = (n: number): string => n < 12 ? words[n] : n < 20 ? `${say(n - 10)} Belas` : n < 100 ? `${say(Math.floor(n / 10))} Puluh ${say(n % 10)}` : n < 200 ? `Seratus ${say(n - 100)}` : n < 1000 ? `${say(Math.floor(n / 100))} Ratus ${say(n % 100)}` : n < 2000 ? `Seribu ${say(n - 1000)}` : n < 1e6 ? `${say(Math.floor(n / 1000))} Ribu ${say(n % 1000)}` : n < 1e9 ? `${say(Math.floor(n / 1e6))} Juta ${say(n % 1e6)}` : `${say(Math.floor(n / 1e9))} Miliar ${say(n % 1e9)}`;
   return `#${say(Math.round(amount)).replace(/\s+/g, ' ').trim()} Rupiah#`;
