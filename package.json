@@ -15,7 +15,7 @@
     "@tesseract.js-data/eng": "^1.0.0",
     "@tesseract.js-data/ind": "^1.0.0",
     "jszip": "3.10.1",
-    "next": "16.4.0",
+    "next": "16.4.6",
     "pdfjs-dist": "3.11.174",
     "react": "19.2.4",
     "react-dom": "19.2.4",
